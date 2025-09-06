@@ -140,4 +140,23 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.DeleteKey("HighScore");
         Debug.Log("High score cleared!");
     }
+    
+    /// <summary>
+    /// Reset the game state - used when returning to menu
+    /// </summary>
+    public void ResetGameState()
+    {
+        currentScore = 0f;
+        isGameOver = false;
+        gameStartTime = Time.time;
+        Time.timeScale = 1f; // Ensure time scale is normal
+        
+        // Reset music pitch if MusicManager exists
+        if (MusicManager.Instance != null)
+        {
+            MusicManager.Instance.ResetMusicPitch();
+        }
+        
+        Debug.Log("Game state reset!");
+    }
 }

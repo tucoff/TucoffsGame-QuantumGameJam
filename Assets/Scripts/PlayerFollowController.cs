@@ -28,6 +28,7 @@ public class PlayerFollowController : MonoBehaviour
     private Vector3 targetCameraPosition;
     private Vector3 currentCameraPosition;
     private bool canShoot = true;
+    private Coroutine currentShootCoroutine;
     
     // Input Actions
     private InputAction lookAction;
@@ -71,9 +72,9 @@ public class PlayerFollowController : MonoBehaviour
         // Enable input actions
         inputActions.Enable();
         
-        // Lock cursor
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Free cursor (unlocked and visible)
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
         
         // Initialize camera position
         if (playerSphere != null && followCamera != null)
@@ -155,7 +156,7 @@ public class PlayerFollowController : MonoBehaviour
     {
         if (canShoot && shootObject != null)
         {
-            StartCoroutine(ShootCoroutine());
+            currentShootCoroutine = StartCoroutine(ShootCoroutine());
         }
     }
     
@@ -178,6 +179,22 @@ public class PlayerFollowController : MonoBehaviour
         
         // Allow shooting again
         canShoot = true;
+        currentShootCoroutine = null;
+    }
+    
+    /// <summary>
+    /// Called when the player successfully hits an enemy - resets shooting cooldown
+    /// </summary>
+    public void OnSuccessfulHit()
+    {
+        // If we're currently in a shooting cooldown, reset it
+        if (!canShoot && currentShootCoroutine != null)
+        {
+            StopCoroutine(currentShootCoroutine);
+            currentShootCoroutine = null;
+            canShoot = true;
+            Debug.Log("Shot cooldown reset due to successful hit!");
+        }
     }
     
     void OnDestroy()

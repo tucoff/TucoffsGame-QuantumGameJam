@@ -8,6 +8,7 @@ public class EnemySpawn : MonoBehaviour
     [SerializeField] private float spawnDistance = 10f;
     [SerializeField] private float initialSpawnInterval = 3f;
     [SerializeField] private int maxEnemies = 5;
+    [SerializeField] private float initialDelay = 30f; // Wait 30 seconds before starting to spawn
     
     [Header("Speed Increase Settings")]
     [SerializeField] private float speedIncreaseInterval = 30f; // Every 30 seconds
@@ -64,6 +65,11 @@ public class EnemySpawn : MonoBehaviour
     
     IEnumerator SpawnEnemyRoutine()
     {
+        // Wait for initial delay before starting to spawn enemies
+        Debug.Log($"Waiting {initialDelay} seconds before starting enemy spawning...");
+        yield return new WaitForSeconds(initialDelay);
+        Debug.Log("Enemy spawning begins!");
+        
         while (true)
         {
             yield return new WaitForSeconds(currentSpawnInterval); // Use dynamic interval

@@ -6,9 +6,16 @@ public class Beam : MonoBehaviour
     [SerializeField] private float upwardForce = 10f;
     [SerializeField] private float rotationSpeed = 360f;
     
+    [Header("Player Reference")]
+    [SerializeField] private PlayerFollowController playerController;
+    
     void Start()
     {
-        
+        // Auto-assign player controller if not set
+        if (playerController == null)
+        {
+            playerController = FindObjectOfType<PlayerFollowController>();
+        }
     }
 
     void Update()
@@ -55,6 +62,16 @@ public class Beam : MonoBehaviour
                 rotationComponent = other.gameObject.AddComponent<EnemyBeamRotation>();
             }
             rotationComponent.Initialize(rotationSpeed);
+            
+            // Notify player controller about successful hit to reset cooldown
+            if (playerController != null)
+            {
+                playerController.OnSuccessfulHit();
+                Debug.Log("Player shot cooldown reset due to successful hit!");
+            }
+            
+            // Deactivate the beam object after successful hit
+            gameObject.SetActive(false);
         }
     }
 }

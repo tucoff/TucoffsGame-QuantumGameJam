@@ -94,44 +94,6 @@ public class ConnectedBeam : MonoBehaviour
     }
     
     /// <summary>
-    /// Find the closest player to connect the beam to
-    /// </summary>
-    private void FindClosestPlayer()
-    {
-        GameObject[] allPlayers = GameObject.FindGameObjectsWithTag("Player");
-        
-        if (allPlayers.Length < 2)
-        {
-            Debug.LogWarning("Need at least 2 players for beam connection!");
-            return;
-        }
-        
-        float closestDistance = Mathf.Infinity;
-        Transform closestPlayer = null;
-        
-        foreach (GameObject player in allPlayers)
-        {
-            // Skip if it's the parent player
-            if (player.transform == parentPlayer)
-                continue;
-                
-            float distance = Vector3.Distance(parentPlayer.position, player.transform.position);
-            if (distance < closestDistance)
-            {
-                closestDistance = distance;
-                closestPlayer = player.transform;
-            }
-        }
-        
-        targetPlayer = closestPlayer;
-        
-        if (targetPlayer != null)
-        {
-            Debug.Log($"ConnectedBeam connecting {parentPlayer.name} to {targetPlayer.name}");
-        }
-    }
-    
-    /// <summary>
     /// Initialize beam properties
     /// </summary>
     private void InitializeBeam()
