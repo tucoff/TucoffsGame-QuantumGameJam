@@ -187,14 +187,8 @@ public class PlayerFollowController : MonoBehaviour
     /// </summary>
     public void OnSuccessfulHit()
     {
-        // If we're currently in a shooting cooldown, reset it
-        if (!canShoot && currentShootCoroutine != null)
-        {
-            StopCoroutine(currentShootCoroutine);
-            currentShootCoroutine = null;
-            canShoot = true;
-            Debug.Log("Shot cooldown reset due to successful hit!");
-        }
+        canShoot = true;
+        currentShootCoroutine = null;
     }
     
     void OnDestroy()

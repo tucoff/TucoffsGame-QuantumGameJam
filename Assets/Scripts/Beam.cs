@@ -14,7 +14,7 @@ public class Beam : MonoBehaviour
         // Auto-assign player controller if not set
         if (playerController == null)
         {
-            playerController = FindObjectOfType<PlayerFollowController>();
+            playerController = FindFirstObjectByType<PlayerFollowController>();
         }
     }
 
@@ -70,8 +70,7 @@ public class Beam : MonoBehaviour
                 Debug.Log("Player shot cooldown reset due to successful hit!");
             }
             
-            // Deactivate the beam object after successful hit
-            gameObject.SetActive(false);
+            // NOTE: Beam continues for its normal duration - does NOT deactivate here
         }
     }
 }

@@ -70,6 +70,15 @@ public class EnemyBeamRotation : MonoBehaviour
         Debug.Log($"Enemy {gameObject.name} now targeting player: {targetPlayer.name}");
     }
     
+    /// <summary>
+    /// Set the movement speed of this enemy
+    /// </summary>
+    /// <param name="speed">The new movement speed</param>
+    public void SetMoveSpeed(float speed)
+    {
+        moveSpeed = speed;
+    }
+    
     public void Initialize(float speed)
     {
         rotationSpeed = speed;

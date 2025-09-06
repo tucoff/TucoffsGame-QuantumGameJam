@@ -15,18 +15,30 @@ public class EnemySpawn : MonoBehaviour
     [SerializeField] private float speedMultiplier = 0.8f; // Makes spawning 20% faster each time
     [SerializeField] private float minimumSpawnInterval = 0.5f; // Don't go faster than this
     
+    [Header("Enemy Movement Speed Settings")]
+    [SerializeField] private float baseMoveSpeed = 5f; // Base movement speed for enemies
+    [SerializeField] private float moveSpeedIncreaseInterval = 20f; // Every 20 seconds
+    [SerializeField] private float moveSpeedIncreaseAmount = 0.5f; // Add 0.5 speed each time
+    [SerializeField] private float maxMoveSpeed = 15f; // Maximum movement speed
+    
     [Header("Target Selection")]
     private GameObject[] players;
     private GameObject selectedTargetPlayer;
     
     private int currentEnemyCount = 0;
     private float currentSpawnInterval;
+    private float currentMoveSpeed;
     private float gameStartTime;
+    private bool cutsceneSkipped = false;
+    private bool spawningActive = false;
+    private Coroutine spawnRoutineCoroutine;
+    private Coroutine delayCoroutine;
     
     void Start()
     {
         // Initialize spawn settings
         currentSpawnInterval = initialSpawnInterval;
+        currentMoveSpeed = baseMoveSpeed;
         gameStartTime = Time.time;
         
         // Find all players with "Player" tag
@@ -38,9 +50,72 @@ public class EnemySpawn : MonoBehaviour
             return;
         }
         
-        // Start spawning enemies and speed increase system
-        StartCoroutine(SpawnEnemyRoutine());
+        // Start delay routine and speed increase systems
+        delayCoroutine = StartCoroutine(InitialDelayRoutine());
         StartCoroutine(SpeedIncreaseRoutine());
+        StartCoroutine(MoveSpeedIncreaseRoutine());
+    }
+    
+    /// <summary>
+    /// Initial delay routine - handles the 30 second wait
+    /// </summary>
+    IEnumerator InitialDelayRoutine()
+    {
+        Debug.Log($"Waiting {initialDelay} seconds before starting enemy spawning...");
+        yield return new WaitForSeconds(initialDelay);
+        
+        // Only start spawning if cutscene wasn't skipped
+        if (!cutsceneSkipped)
+        {
+            StartSpawning();
+        }
+    }
+    
+    /// <summary>
+    /// Start the enemy spawning system
+    /// </summary>
+    void StartSpawning()
+    {
+        if (!spawningActive)
+        {
+            spawningActive = true;
+            spawnRoutineCoroutine = StartCoroutine(SpawnEnemyLoop());
+            Debug.Log("Enemy spawning begins!");
+        }
+    }
+    
+    /// <summary>
+    /// Public function to skip cutscene and start spawning enemies immediately
+    /// </summary>
+    public void SkipCutscene()
+    {
+        if (!cutsceneSkipped && !spawningActive)
+        {
+            cutsceneSkipped = true;
+            
+            // Stop the delay routine
+            if (delayCoroutine != null)
+            {
+                StopCoroutine(delayCoroutine);
+                delayCoroutine = null;
+                Debug.Log("Initial delay stopped!");
+            }
+            
+            // Reset game start time for speed increase system
+            gameStartTime = Time.time;
+            
+            // Start spawning immediately
+            StartSpawning();
+            Debug.Log("Cutscene skipped! Enemy spawning starts immediately.");
+        }
+        else if (spawningActive)
+        {
+            Debug.Log("Spawning is already active!");
+        }
+        else
+        {
+            Debug.Log("Cutscene already skipped!");
+        }
     }
     
     /// <summary>
@@ -63,16 +138,47 @@ public class EnemySpawn : MonoBehaviour
         }
     }
     
-    IEnumerator SpawnEnemyRoutine()
+    /// <summary>
+    /// Coroutine that increases enemy movement speed over time
+    /// </summary>
+    IEnumerator MoveSpeedIncreaseRoutine()
     {
-        // Wait for initial delay before starting to spawn enemies
-        Debug.Log($"Waiting {initialDelay} seconds before starting enemy spawning...");
-        yield return new WaitForSeconds(initialDelay);
-        Debug.Log("Enemy spawning begins!");
-        
         while (true)
         {
-            yield return new WaitForSeconds(currentSpawnInterval); // Use dynamic interval
+            yield return new WaitForSeconds(moveSpeedIncreaseInterval);
+            
+            // Increase movement speed
+            float previousSpeed = currentMoveSpeed;
+            currentMoveSpeed += moveSpeedIncreaseAmount;
+            
+            // Don't exceed maximum
+            currentMoveSpeed = Mathf.Min(currentMoveSpeed, maxMoveSpeed);
+            
+            Debug.Log($"Enemy movement speed increased! Speed: {previousSpeed:F1} → {currentMoveSpeed:F1} (after {Time.time - gameStartTime:F0} seconds)");
+            
+            // Update speed of all existing enemies
+            UpdateExistingEnemySpeeds();
+        }
+    }
+    
+    /// <summary>
+    /// Main enemy spawning loop - runs continuously once started
+    /// </summary>
+    IEnumerator SpawnEnemyLoop()
+    {
+        // Spawn first enemy immediately
+        if (currentEnemyCount < maxEnemies && players.Length > 0)
+        {
+            Debug.Log("Spawning first enemy immediately...");
+            SpawnEnemy();
+        }
+        
+        // Continue spawning at intervals
+        while (true)
+        {
+            yield return new WaitForSeconds(currentSpawnInterval);
+            
+            Debug.Log($"Spawn check: Enemies {currentEnemyCount}/{maxEnemies}, Players: {players.Length}, Interval: {currentSpawnInterval:F2}s");
             
             if (currentEnemyCount < maxEnemies && players.Length > 0)
             {
@@ -96,17 +202,18 @@ public class EnemySpawn : MonoBehaviour
         
         // Generate random spawn position with constraints:
         // - Spawn at any position around player within a circular radius
-        // - Maintain minimum distance from player (radius)
+        // - Maintain minimum distance from player (using spawnDistance as minimum)
         // - Y same as player
         
-        float minDistance = 30f;
-        float effectiveSpawnDistance = Mathf.Max(spawnDistance, minDistance);
+        // Use spawnDistance as the minimum distance (respects inspector setting)
+        float minDistance = spawnDistance; // Now respects the configured spawnDistance
+        float maxDistance = spawnDistance + 20f; // Add some variation (20 units beyond minimum)
         
         // Generate a random angle for circular spawning (0 to 360 degrees)
         float randomAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
         
-        // Generate a random radius between minimum distance and effective spawn distance
-        float randomRadius = Random.Range(minDistance, effectiveSpawnDistance);
+        // Generate a random radius between minimum distance and max distance
+        float randomRadius = Random.Range(minDistance, maxDistance);
         
         // Calculate X and Z offsets using circular coordinates
         float xOffset = Mathf.Cos(randomAngle) * randomRadius;
@@ -125,12 +232,16 @@ public class EnemySpawn : MonoBehaviour
         {
             GameObject spawnedEnemy = Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
             
-            // Get the EnemyBeamRotation component and set the target player
+            // Get the EnemyBeamRotation component and set the target player + movement speed
             EnemyBeamRotation enemyBeam = spawnedEnemy.GetComponent<EnemyBeamRotation>();
             if (enemyBeam != null)
             {
                 // Set the enemy to follow the selected target player
                 enemyBeam.SetTargetPlayer(selectedTargetPlayer.transform);
+                
+                // Set current movement speed
+                enemyBeam.SetMoveSpeed(currentMoveSpeed);
+                Debug.Log($"Enemy spawned with move speed: {currentMoveSpeed:F1}");
             }
             
             // Track enemy count
@@ -159,6 +270,28 @@ public class EnemySpawn : MonoBehaviour
         Debug.Log($"Enemy converted to player. Current enemy count: {currentEnemyCount}");
     }
     
+    /// <summary>
+    /// Update movement speed of all existing enemies in the scene
+    /// </summary>
+    private void UpdateExistingEnemySpeeds()
+    {
+        // Find all enemies in the scene
+        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
+        int updatedCount = 0;
+        
+        foreach (GameObject enemy in enemies)
+        {
+            EnemyBeamRotation enemyBeam = enemy.GetComponent<EnemyBeamRotation>();
+            if (enemyBeam != null)
+            {
+                enemyBeam.SetMoveSpeed(currentMoveSpeed);
+                updatedCount++;
+            }
+        }
+        
+        Debug.Log($"Updated movement speed for {updatedCount} existing enemies to {currentMoveSpeed:F1}");
+    }
+    
     void Update()
     {
         // Refresh players list periodically in case new players are added/removed
@@ -167,4 +300,46 @@ public class EnemySpawn : MonoBehaviour
             players = GameObject.FindGameObjectsWithTag("Player");
         }
     }
+    
+    /// <summary>
+    /// Debug method to check spawn system status including movement speed
+    /// </summary>
+    [ContextMenu("Debug Spawn Status")]
+    public void DebugSpawnStatus()
+    {
+        Debug.Log($"=== ENEMY SPAWN DEBUG ===");
+        Debug.Log($"Cutscene Skipped: {cutsceneSkipped}");
+        Debug.Log($"Spawning Active: {spawningActive}");
+        Debug.Log($"Current Enemy Count: {currentEnemyCount}/{maxEnemies}");
+        Debug.Log($"Players Found: {players.Length}");
+        Debug.Log($"Spawn Interval: {currentSpawnInterval:F2}s");
+        Debug.Log($"Enemy Move Speed: {currentMoveSpeed:F1} (Base: {baseMoveSpeed:F1}, Max: {maxMoveSpeed:F1})");
+        Debug.Log($"Delay Routine Running: {delayCoroutine != null}");
+        Debug.Log($"Spawn Routine Running: {spawnRoutineCoroutine != null}");
+        Debug.Log($"Enemy Prefab Assigned: {enemyPrefab != null}");
+        Debug.Log($"Initial Delay: {initialDelay}s");
+        Debug.Log($"Time since game start: {Time.time - gameStartTime:F1}s");
+        if (players.Length > 0)
+        {
+            Debug.Log($"First Player Position: {players[0].transform.position}");
+        }
+        Debug.Log($"=========================");
+    }
+    
+    /// <summary>
+    /// Force spawn an enemy for testing
+    /// </summary>
+    [ContextMenu("Force Spawn Enemy")]
+    public void ForceSpawnEnemy()
+    {
+        if (players.Length > 0)
+        {
+            SpawnEnemy();
+        }
+        else
+        {
+            Debug.LogWarning("Cannot force spawn - no players found!");
+        }
+    }
+    
 }

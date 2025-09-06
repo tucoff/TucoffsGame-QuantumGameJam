@@ -151,12 +151,6 @@ public class GameManager : MonoBehaviour
         gameStartTime = Time.time;
         Time.timeScale = 1f; // Ensure time scale is normal
         
-        // Reset music pitch if MusicManager exists
-        if (MusicManager.Instance != null)
-        {
-            MusicManager.Instance.ResetMusicPitch();
-        }
-        
         Debug.Log("Game state reset!");
     }
 }
