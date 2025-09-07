@@ -25,6 +25,17 @@ public class EnemySpawn : MonoBehaviour
     private GameObject[] players;
     private GameObject selectedTargetPlayer;
     
+    [Header("Dark Mode Settings")]
+    private bool isDarkMode = false;
+    private float darkModeSpawnDistanceMultiplier = 0.85f; // Spawn enemies closer
+    [SerializeField] private int darkModeMaxEnemyIncrease = 10; // Increase max enemies by this amount
+    [SerializeField] private float darkModeIncreaseInterval = 10f; // Every 10 seconds in dark mode
+    
+    // Dark mode progression tracking
+    private int originalMaxEnemies;
+    private float darkModeStartTime;
+    private Coroutine darkModeProgressionCoroutine;
+
     private int currentEnemyCount = 0;
     private float currentSpawnInterval;
     private float currentMoveSpeed;
@@ -40,6 +51,9 @@ public class EnemySpawn : MonoBehaviour
         currentSpawnInterval = initialSpawnInterval;
         currentMoveSpeed = baseMoveSpeed;
         gameStartTime = Time.time;
+        
+        // Store original max enemies for dark mode restoration
+        originalMaxEnemies = maxEnemies;
         
         // Find all players with "Player" tag
         players = GameObject.FindGameObjectsWithTag("Player");
@@ -204,10 +218,17 @@ public class EnemySpawn : MonoBehaviour
         // - Spawn at any position around player within a circular radius
         // - Maintain minimum distance from player (using spawnDistance as minimum)
         // - Y same as player
+        // - In dark mode, spawn enemies much closer (half the distance)
         
-        // Use spawnDistance as the minimum distance (respects inspector setting)
-        float minDistance = spawnDistance; // Now respects the configured spawnDistance
-        float maxDistance = spawnDistance + 20f; // Add some variation (20 units beyond minimum)
+        // Use spawnDistance as the minimum distance (respects the configured spawnDistance)
+        float baseMinDistance = spawnDistance;
+        float baseMaxDistance = spawnDistance + 20f; // Add some variation (20 units beyond minimum)
+        
+        // Apply dark mode multiplier to make enemies spawn closer
+        float minDistance = isDarkMode ? baseMinDistance * darkModeSpawnDistanceMultiplier : baseMinDistance;
+        float maxDistance = isDarkMode ? baseMaxDistance * darkModeSpawnDistanceMultiplier : baseMaxDistance;
+        
+        Debug.Log($"Spawn distances - Dark Mode: {isDarkMode}, Min: {minDistance:F2}, Max: {maxDistance:F2} (Base Min: {baseMinDistance}, Base Max: {baseMaxDistance})");
         
         // Generate a random angle for circular spawning (0 to 360 degrees)
         float randomAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
@@ -351,9 +372,20 @@ public class EnemySpawn : MonoBehaviour
         Debug.Log($"Cutscene Skipped: {cutsceneSkipped}");
         Debug.Log($"Spawning Active: {spawningActive}");
         Debug.Log($"Current Enemy Count: {currentEnemyCount}/{maxEnemies}");
+        Debug.Log($"Original Max Enemies: {originalMaxEnemies}");
         Debug.Log($"Players Found: {players.Length}");
         Debug.Log($"Spawn Interval: {currentSpawnInterval:F2}s");
         Debug.Log($"Enemy Move Speed: {currentMoveSpeed:F1} (Base: {baseMoveSpeed:F1}, Max: {maxMoveSpeed:F1})");
+        Debug.Log($"Dark Mode: {isDarkMode} (Spawn Distance Multiplier: {darkModeSpawnDistanceMultiplier})");
+        if (isDarkMode)
+        {
+            float timeSinceDarkMode = Time.time - darkModeStartTime;
+            int expectedIncreases = Mathf.FloorToInt(timeSinceDarkMode / darkModeIncreaseInterval);
+            int expectedMaxEnemies = originalMaxEnemies + (expectedIncreases * darkModeMaxEnemyIncrease);
+            Debug.Log($"Dark Mode Time: {timeSinceDarkMode:F1}s");
+            Debug.Log($"Expected Max Enemies: {expectedMaxEnemies} (Increases: {expectedIncreases})");
+            Debug.Log($"Dark Mode Progression Running: {darkModeProgressionCoroutine != null}");
+        }
         Debug.Log($"Delay Routine Running: {delayCoroutine != null}");
         Debug.Log($"Spawn Routine Running: {spawnRoutineCoroutine != null}");
         Debug.Log($"Enemy Prefab Assigned: {enemyPrefab != null}");
@@ -382,4 +414,83 @@ public class EnemySpawn : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Test dark mode toggle for debugging
+    /// </summary>
+    [ContextMenu("Toggle Dark Mode (Test)")]
+    public void ToggleDarkModeTest()
+    {
+        SetDarkModeSpawning(!isDarkMode);
+    }
+    
+    /// <summary>
+    /// Enable or disable dark mode spawning (enemies spawn closer)
+    /// Called by LightingManager when lights switch
+    /// </summary>
+    public void SetDarkModeSpawning(bool enableDarkMode)
+    {
+        isDarkMode = enableDarkMode;
+        if (enableDarkMode)
+        {
+            darkModeStartTime = Time.time;
+            
+            // Start dark mode progression (increase max enemies every 10 seconds)
+            if (darkModeProgressionCoroutine != null)
+            {
+                StopCoroutine(darkModeProgressionCoroutine);
+            }
+            darkModeProgressionCoroutine = StartCoroutine(DarkModeProgressionRoutine());
+            
+            Debug.Log($"DARK MODE ACTIVATED! Enemies will spawn {darkModeSpawnDistanceMultiplier * 100:F0}% closer");
+            Debug.Log($"Max enemies will increase by {darkModeMaxEnemyIncrease} every {darkModeIncreaseInterval} seconds!");
+        }
+        else
+        {
+            // Stop dark mode progression
+            if (darkModeProgressionCoroutine != null)
+            {
+                StopCoroutine(darkModeProgressionCoroutine);
+                darkModeProgressionCoroutine = null;
+            }
+            
+            // Restore original max enemies
+            maxEnemies = originalMaxEnemies;
+            
+            Debug.Log("Dark mode spawning disabled - normal spawn distances and max enemies restored");
+        }
+    }
+    
+    /// <summary>
+    /// Corrotina que aumenta o máximo de inimigos a cada 10 segundos no dark mode
+    /// </summary>
+    IEnumerator DarkModeProgressionRoutine()
+    {
+        Debug.Log($"Dark Mode Progression started! Max enemies will increase every {darkModeIncreaseInterval} seconds");
+        
+        while (isDarkMode)
+        {
+            yield return new WaitForSeconds(darkModeIncreaseInterval);
+            
+            if (isDarkMode) // Check again in case dark mode was disabled during wait
+            {
+                int previousMax = maxEnemies;
+                maxEnemies += darkModeMaxEnemyIncrease;
+                
+                float timeSinceDarkMode = Time.time - darkModeStartTime;
+                Debug.Log($"🔥 DARK MODE ESCALATION! Max enemies: {previousMax} → {maxEnemies} (after {timeSinceDarkMode:F0}s in dark mode)");
+                Debug.Log($"Current enemies: {currentEnemyCount}/{maxEnemies} - The chaos intensifies!");
+            }
+        }
+        
+        Debug.Log("Dark Mode Progression stopped");
+    }
+    
+    /// <summary>
+    /// Get current dark mode status
+    /// </summary>
+    public bool IsInDarkMode()
+    {
+        return isDarkMode;
+    }
+
 }
