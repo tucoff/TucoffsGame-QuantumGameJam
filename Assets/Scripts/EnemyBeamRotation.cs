@@ -15,6 +15,10 @@ public class EnemyBeamRotation : MonoBehaviour
     [SerializeField] private float defeatWaitTime = 3f;
     [SerializeField] private Transform childToActivate; // The child object to activate after defeat
     
+    [Header("Death/Conversion Visual Settings")]
+    [SerializeField] private Material happyMaterial; // Material to apply when enemy dies/converts
+    [SerializeField] private string planeChildName = "Plane"; // Name of the plane child to find
+    
     private Transform player;
     private bool isDead = false;
     private bool isDefeated = false;
@@ -37,6 +41,9 @@ public class EnemyBeamRotation : MonoBehaviour
                 player = playerObject.transform;
         }
         
+        // Fix mesh collider issues on this enemy
+        FixMeshColliderIssues();
+        
         // Ensure child objects start inactive
         EnsureChildrenAreInactive();
     }
@@ -52,11 +59,64 @@ public class EnemyBeamRotation : MonoBehaviour
         }
         else
         {
+            // First, find and keep reference to the Plane child
+            Transform planeChild = transform.Find("Plane");
+            
             // Deactivate all children to ensure they're not active before defeat sequence
             for (int i = 0; i < transform.childCount; i++)
             {
                 transform.GetChild(i).gameObject.SetActive(false);
             }
+            
+            // Reactivate the Plane child and orient it towards the player
+            if (planeChild != null)
+            {
+                planeChild.gameObject.SetActive(true);
+                if (player != null)
+                {
+                    Vector3 directionToPlayer = (player.position - planeChild.position).normalized;
+                    if (directionToPlayer != Vector3.zero)
+                    {
+                        planeChild.rotation = Quaternion.LookRotation(directionToPlayer);
+                    }
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Fix mesh collider issues on this enemy and its children (specifically for Plane/PlaneFace)
+    /// </summary>
+    private void FixMeshColliderIssues()
+    {
+        // Fix mesh colliders on this object and all children recursively
+        FixMeshCollidersRecursive(transform);
+    }
+    
+    /// <summary>
+    /// Recursively fix mesh collider issues
+    /// </summary>
+    /// <param name="parent">Parent transform to check</param>
+    private void FixMeshCollidersRecursive(Transform parent)
+    {
+        // Check current object for mesh collider issues
+        MeshCollider meshCollider = parent.GetComponent<MeshCollider>();
+        Rigidbody rigidbody = parent.GetComponent<Rigidbody>();
+        
+        if (meshCollider != null && rigidbody != null && !rigidbody.isKinematic)
+        {
+            // If there's a non-kinematic rigidbody and a mesh collider, make the mesh collider convex
+            if (!meshCollider.convex)
+            {
+                meshCollider.convex = true;
+                Debug.Log($"Fixed concave mesh collider on {parent.name} - made convex for dynamic rigidbody");
+            }
+        }
+        
+        // Recursively check all children
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            FixMeshCollidersRecursive(parent.GetChild(i));
         }
     }
     
@@ -92,6 +152,9 @@ public class EnemyBeamRotation : MonoBehaviour
         isRotating = true;
         isDead = true; // Enemy is considered dead when rotating
         isDefeated = true; // Mark as defeated
+        
+        // Activate visual effects when enemy is hit
+        ActivateDeathEffects();
         
         // Start the defeat sequence
         if (defeatCoroutine != null)
@@ -246,5 +309,101 @@ public class EnemyBeamRotation : MonoBehaviour
     public void SetChildToActivate(Transform child)
     {
         childToActivate = child;
+    }
+    
+    /// <summary>
+    /// Activate visual effects when enemy is hit/dies
+    /// </summary>
+    private void ActivateDeathEffects()
+    {
+        // 1. Activate the Light component within this enemy
+        Light enemyLight = GetComponentInChildren<Light>();
+        if (enemyLight != null)
+        {
+            enemyLight.enabled = true;
+            Debug.Log($"Activated light on enemy: {gameObject.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"No Light component found in children of {gameObject.name}");
+        }
+        
+        // 2. Find the grandchild "Plane" and change its texture
+        ChangeGrandchildPlaneTexture();
+    }
+    
+    /// <summary>
+    /// Find the plane grandchild and change its material to the happy material
+    /// </summary>
+    private void ChangeGrandchildPlaneTexture()
+    {
+        if (happyMaterial == null)
+        {
+            Debug.LogWarning($"Happy material not assigned for enemy: {gameObject.name}");
+            return;
+        }
+        
+        // Search through all children and their children to find the plane
+        Transform planeTransform = FindGrandchildByName(transform, planeChildName);
+        
+        if (planeTransform != null)
+        {
+            // Get the renderer component and change the material
+            Renderer planeRenderer = planeTransform.GetComponent<Renderer>();
+            if (planeRenderer != null)
+            {
+                // Change the material to happy material
+                planeRenderer.material = happyMaterial;
+                Debug.Log($"Changed material of {planeTransform.name} to happy material on enemy: {gameObject.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"No Renderer found on plane {planeTransform.name} in enemy: {gameObject.name}");
+                
+                // Try to find renderer in children of the plane
+                Renderer childRenderer = planeTransform.GetComponentInChildren<Renderer>();
+                if (childRenderer != null)
+                {
+                    childRenderer.material = happyMaterial;
+                    Debug.Log($"Changed material of child renderer in {planeTransform.name} to happy material on enemy: {gameObject.name}");
+                }
+                else
+                {
+                    Debug.LogError($"No Renderer found in {planeTransform.name} or its children in enemy: {gameObject.name}");
+                }
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"Plane child named '{planeChildName}' not found in grandchildren of enemy: {gameObject.name}");
+        }
+    }
+    
+    /// <summary>
+    /// Recursively search for a grandchild with the specified name
+    /// </summary>
+    /// <param name="parent">Parent transform to search in</param>
+    /// <param name="childName">Name of the child to find</param>
+    /// <returns>Transform of the found child, or null if not found</returns>
+    private Transform FindGrandchildByName(Transform parent, string childName)
+    {
+        // Search through all direct children
+        foreach (Transform child in parent)
+        {
+            // Check if this child has the name we're looking for
+            if (child.name.Equals(childName, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return child;
+            }
+            
+            // Recursively search in this child's children
+            Transform found = FindGrandchildByName(child, childName);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+        
+        return null; // Not found
     }
 }

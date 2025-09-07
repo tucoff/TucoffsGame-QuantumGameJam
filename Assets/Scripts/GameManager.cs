@@ -103,6 +103,24 @@ public class GameManager : MonoBehaviour
     }
     
     /// <summary>
+    /// Get the game start time
+    /// </summary>
+    /// <returns>Time when the game started</returns>
+    public float GetGameStartTime()
+    {
+        return gameStartTime;
+    }
+    
+    /// <summary>
+    /// Get the current survival time in seconds
+    /// </summary>
+    /// <returns>How long the player has survived</returns>
+    public float GetSurvivalTime()
+    {
+        return Time.time - gameStartTime;
+    }
+    
+    /// <summary>
     /// Load the game over scene (SceneManager)
     /// </summary>
     private void LoadGameOverScene()

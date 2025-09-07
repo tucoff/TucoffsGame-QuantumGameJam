@@ -232,6 +232,9 @@ public class EnemySpawn : MonoBehaviour
         {
             GameObject spawnedEnemy = Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
             
+            // Fix concave mesh collider issues on spawned enemy
+            FixEnemyMeshColliders(spawnedEnemy);
+            
             // Get the EnemyBeamRotation component and set the target player + movement speed
             EnemyBeamRotation enemyBeam = spawnedEnemy.GetComponent<EnemyBeamRotation>();
             if (enemyBeam != null)
@@ -268,6 +271,43 @@ public class EnemySpawn : MonoBehaviour
         currentEnemyCount--;
         currentEnemyCount = Mathf.Max(0, currentEnemyCount); // Ensure it doesn't go below 0
         Debug.Log($"Enemy converted to player. Current enemy count: {currentEnemyCount}");
+    }
+    
+    /// <summary>
+    /// Fix concave mesh collider issues on enemy and its children
+    /// </summary>
+    /// <param name="enemy">The enemy GameObject to fix</param>
+    private void FixEnemyMeshColliders(GameObject enemy)
+    {
+        // Fix mesh colliders recursively on enemy and all children
+        FixMeshCollidersRecursive(enemy.transform);
+    }
+    
+    /// <summary>
+    /// Recursively fix mesh collider issues
+    /// </summary>
+    /// <param name="parent">Parent transform to check</param>
+    private void FixMeshCollidersRecursive(Transform parent)
+    {
+        // Check current object
+        MeshCollider meshCollider = parent.GetComponent<MeshCollider>();
+        Rigidbody rigidbody = parent.GetComponent<Rigidbody>();
+        
+        if (meshCollider != null && rigidbody != null && !rigidbody.isKinematic)
+        {
+            // If there's a non-kinematic rigidbody and a mesh collider, make the mesh collider convex
+            if (!meshCollider.convex)
+            {
+                meshCollider.convex = true;
+                Debug.Log($"Fixed concave mesh collider on {parent.name} - made convex for dynamic rigidbody");
+            }
+        }
+        
+        // Recursively check all children
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            FixMeshCollidersRecursive(parent.GetChild(i));
+        }
     }
     
     /// <summary>
